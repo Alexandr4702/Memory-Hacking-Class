@@ -1,53 +1,43 @@
-#include "stdafx.hpp"
 #include "Memory.hpp"
+#include <iostream>
 
-int Memory::GetProcessId(char* processName) {
-    SetLastError(0);
-    PROCESSENTRY32 pe32;
-    HANDLE hSnapshot = NULL;
-    GetLastError();
-    pe32.dwSize = sizeof( PROCESSENTRY32 );
-    hSnapshot = CreateToolhelp32Snapshot( TH32CS_SNAPPROCESS, 0 );
-    
-    if( Process32First( hSnapshot, &pe32 ) ) {
-        do {
-            if( strcmp( pe32.szExeFile, processName ) == 0 )
-                break;
-        } while( Process32Next( hSnapshot, &pe32 ) );
+int Memory::GetProcessId(std::wstring& processName) {
+
+  HWND hwnd = FindWindowW(NULL, processName.c_str());
+  DWORD ProcessID = 0;
+
+  GetWindowThreadProcessId(hwnd, &ProcessID);
+
+  return ProcessID;	
+}
+
+HMODULE Memory::GetModuleBase(HANDLE processHandle, std::string &sModuleName) {
+  HMODULE *hModules = NULL;
+  char szBuf[50];
+  DWORD cModules;
+  HMODULE dwBase = 0;
+
+  EnumProcessModules(processHandle, hModules, 0, &cModules);
+  hModules = new HMODULE[cModules / sizeof(HMODULE)];
+  std::cout << cModules << "\n";
+
+  if (EnumProcessModules(processHandle, hModules, cModules / sizeof(HMODULE),
+                         &cModules)) {
+    for (size_t i = 0; i < cModules / sizeof(HMODULE); i++) {
+      std::cout << szBuf << " " << hModules[i] << " " << processHandle << "\n";
+      if (GetModuleBaseName(processHandle, hModules[i], szBuf, sizeof(szBuf))) {
+        if (sModuleName.compare(szBuf) == 0) {
+          dwBase = hModules[i];
+          break;
+        }
+      }
     }
-    
-    if( hSnapshot != INVALID_HANDLE_VALUE )
-        CloseHandle( hSnapshot );
-    int err = GetLastError();
-    //std::cout << err << std::endl;
-    if (err != 0)
-        return 0;
-    return pe32.th32ProcessID;	
-}
-int Memory::GetModuleBase(HANDLE processHandle, string &sModuleName) 
-{ 
-    HMODULE *hModules = NULL; 
-    char szBuf[50]; 
-    DWORD cModules; 
-    DWORD dwBase = -1;
+  }
 
-    EnumProcessModules(processHandle, hModules, 0, &cModules); 
-    hModules = new HMODULE[cModules/sizeof(HMODULE)]; 
-    
-    if(EnumProcessModules(processHandle, hModules, cModules/sizeof(HMODULE), &cModules)) { 
-       for(size_t i = 0; i < cModules/sizeof(HMODULE); i++) { 
-          if(GetModuleBaseName(processHandle, hModules[i], szBuf, sizeof(szBuf))) { 
-             if(sModuleName.compare(szBuf) == 0) { 
-                dwBase = (DWORD)hModules[i]; 
-                break; 
-             } 
-          } 
-       } 
-    } 
-    
-    delete[] hModules;
-    return dwBase; 
+  delete[] hModules;
+  return dwBase;
 }
+
 BOOL Memory::SetPrivilege(HANDLE hToken, LPCTSTR lpszPrivilege, BOOL bEnablePrivilege)
 {
     TOKEN_PRIVILEGES tp;
@@ -77,17 +67,23 @@ BOOL Memory::SetPrivilege(HANDLE hToken, LPCTSTR lpszPrivilege, BOOL bEnablePriv
 
     return TRUE;
 }
+
 BOOL Memory::GetDebugPrivileges(void) {
-	HANDLE hToken = NULL;
-    if(!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &hToken))
-        return FALSE; //std::cout << "OpenProcessToken() failed, error\n>> " << GetLastError() << std::endl;
-    //else std::cout << "OpenProcessToken() is OK, got the handle!" << std::endl;
-    
-    if(!SetPrivilege(hToken, SE_DEBUG_NAME, TRUE))
-        return FALSE; //std::cout << "Failed to enable privilege, error:\n>> " << GetLastError() << std::endl;
-	
-	return TRUE;
+  HANDLE hToken = NULL;
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES,
+                        &hToken)) {
+    std::cout << "OpenProcessToken() failed, error" << GetLastError() << "\n";
+    return FALSE;
+  }
+
+  if (!SetPrivilege(hToken, SE_DEBUG_NAME, TRUE)) {
+    std::cout << "Failed to enable privilege, error: " << GetLastError() << "\n";
+    return FALSE;
+  }
+
+  return TRUE;
 }
+
 int Memory::ReadInt(HANDLE processHandle, int address) {
     if (address == -1)
         return -1;
@@ -96,7 +92,7 @@ int Memory::ReadInt(HANDLE processHandle, int address) {
     SIZE_T NumberOfBytesActuallyRead;
     BOOL success = ReadProcessMemory(processHandle, (LPCVOID)address, &buffer, NumberOfBytesToRead, &NumberOfBytesActuallyRead);
     if (!success || NumberOfBytesActuallyRead != NumberOfBytesToRead) {
-        std::cout << "Memory Error!" << std::endl;
+        // std::cout << "Memory Error!" << std::endl;
         return -1;
     }
     //if (err || NumberOfBytesActuallyRead != NumberOfBytesToRead) {
@@ -141,7 +137,7 @@ float Memory::ReadPointerFloat(HANDLE processHandle, int startAddress, int offse
 }
 char* Memory::ReadText(HANDLE processHandle, int address) {
     if (address == -1)
-        return "-1";
+        return nullptr;
     char buffer = !0;
 	char* stringToRead = new char[128];
     SIZE_T NumberOfBytesToRead = sizeof(buffer);
@@ -150,7 +146,7 @@ char* Memory::ReadText(HANDLE processHandle, int address) {
 	while (buffer != 0) {
 		BOOL success = ReadProcessMemory(processHandle, (LPCVOID)address, &buffer, NumberOfBytesToRead, &NumberOfBytesActuallyRead);
         if (!success || NumberOfBytesActuallyRead != NumberOfBytesToRead)
-            return "-1";
+            return nullptr;
         stringToRead[i] = buffer;
 		i++;
 		address++;
@@ -159,6 +155,6 @@ char* Memory::ReadText(HANDLE processHandle, int address) {
 }
 char* Memory::ReadPointerText(HANDLE processHandle, int startAddress, int offsets[], int offsetCount) {
     if (startAddress == -1)
-        return "-1";
+        return nullptr;
 	return ReadText(processHandle, GetPointerAddress(processHandle, startAddress, offsets, offsetCount));
 }
