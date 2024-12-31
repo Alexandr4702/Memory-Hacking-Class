@@ -1,25 +1,31 @@
-#pragma once
-#include "stdafx.hpp"
-#include "Memory.hpp"
-#include <Windows.h>
+#ifndef MEMORY_HPP_
+#define MEMORY_HPP_
+
+#include <windows.h>
 #include <TlHelp32.h>
 #include <string>
-#include <psapi.h>
-#pragma comment(lib, "psapi")
-using std::string;
+#include <vector>
+#include <stdexcept>
+#include <cstdint>
 
-class Memory
-{
+class Memory {
 public:
-    int GetProcessId(char* processName);
-    int GetModuleBase(HANDLE processHandle, string &sModuleName);
-    BOOL SetPrivilege(HANDLE hToken, LPCTSTR lpszPrivilege, BOOL bEnablePrivilege);
-    BOOL GetDebugPrivileges(void);
-    int ReadInt(HANDLE processHandle, int address);
-    int GetPointerAddress(HANDLE processHandle, int startAddress, int offsets[], int offsetCount);
-    int ReadPointerInt(HANDLE processHandle, int startAddress, int offsets[], int offsetCount);
-    float ReadFloat(HANDLE processHandle, int address);
-    float ReadPointerFloat(HANDLE processHandle, int startAddress, int offsets[], int offsetCount);
-    char* ReadText(HANDLE processHandle, int address);
-    char* ReadPointerText(HANDLE processHandle, int startAddress, int offsets[], int offsetCount);
+    explicit Memory(const std::wstring& processName);
+    ~Memory();
+
+    uintptr_t GetModuleBase(const std::string& moduleName);
+    void EnableDebugPrivileges();
+    void ReadModuleToVector(const std::string& moduleName);
+
+    const std::vector<uint8_t>& GetModuleMemory() const;
+
+private:
+    HANDLE m_processHandle = nullptr;
+    uintptr_t m_moduleBase = 0;
+    size_t m_moduleSize = 0;
+    std::vector<uint8_t> m_moduleMemory;
+
+    static void SetPrivilege(HANDLE hToken, const wchar_t* privilegeName, bool enablePrivilege);
 };
+
+#endif // MEMORY_HPP_
