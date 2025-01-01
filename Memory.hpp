@@ -13,7 +13,7 @@ public:
     explicit Memory(const std::wstring& processName);
     ~Memory();
 
-    void EnableDebugPrivileges();
+    static void EnableDebugPrivileges();
     void ReadModuleToVector(const std::string& moduleName);
     void ReadModuleToVector(uintptr_t moduleBase, size_t moduleSize);
 
@@ -22,6 +22,7 @@ public:
 private:
     HANDLE m_processHandle = nullptr;
     std::vector<uint8_t> m_moduleMemory;
+    static bool m_isDebugPrivilegesEnabled;
 
     static void SetPrivilege(HANDLE hToken, const wchar_t* privilegeName, bool enablePrivilege);
 };

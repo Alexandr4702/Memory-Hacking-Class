@@ -2,6 +2,8 @@
 #include <Psapi.h>
 #include <iostream>
 
+bool Memory::m_isDebugPrivilegesEnabled = false;
+
 Memory::Memory(const std::wstring& processName) {
     EnableDebugPrivileges();
 
@@ -73,6 +75,9 @@ const std::vector<uint8_t>& Memory::GetModuleMemory() const {
 }
 
 void Memory::EnableDebugPrivileges() {
+    if(m_isDebugPrivilegesEnabled)
+        return;
+
     HANDLE tokenHandle;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &tokenHandle)) {
         throw std::runtime_error("Failed to open process token");
@@ -80,6 +85,7 @@ void Memory::EnableDebugPrivileges() {
 
     SetPrivilege(tokenHandle, L"SeDebugPrivilege", true);
     CloseHandle(tokenHandle);
+    m_isDebugPrivilegesEnabled = true;
 }
 
 void Memory::SetPrivilege(HANDLE hToken, const wchar_t* privilegeName, bool enablePrivilege) {
