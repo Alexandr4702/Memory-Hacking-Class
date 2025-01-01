@@ -25,9 +25,11 @@ Memory::~Memory() {
     }
 }
 
-uintptr_t Memory::GetModuleBase(const std::string& moduleName) {
+void Memory::ReadModuleToVector(const std::string& moduleName) {
     HMODULE hModules[1024];
     DWORD cbNeeded;
+    size_t moduleSize = 0;
+    uintptr_t moduleBase;
 
     if (!EnumProcessModules(m_processHandle, hModules, sizeof(hModules), &cbNeeded)) {
         throw std::runtime_error("Failed to enumerate modules");
@@ -41,9 +43,10 @@ uintptr_t Memory::GetModuleBase(const std::string& moduleName) {
             if (moduleName == moduleFileName) {
                 MODULEINFO modInfo;
                 if (GetModuleInformation(m_processHandle, hModules[i], &modInfo, sizeof(modInfo))) {
-                    m_moduleBase = reinterpret_cast<uintptr_t>(modInfo.lpBaseOfDll);
-                    m_moduleSize = modInfo.SizeOfImage;
-                    return m_moduleBase;
+                    moduleBase = reinterpret_cast<uintptr_t>(modInfo.lpBaseOfDll);
+                    moduleSize = modInfo.SizeOfImage;
+                    ReadModuleToVector(moduleBase, moduleSize);
+                    return;
                 }
             }
         }
@@ -52,17 +55,15 @@ uintptr_t Memory::GetModuleBase(const std::string& moduleName) {
     throw std::runtime_error("Module not found");
 }
 
-void Memory::ReadModuleToVector(const std::string& moduleName) {
-    m_moduleBase = GetModuleBase(moduleName);
-
-    m_moduleMemory.resize(m_moduleSize);
+void Memory::ReadModuleToVector(uintptr_t moduleBase, size_t moduleSize) {
     SIZE_T bytesRead = 0;
+    m_moduleMemory.resize(moduleSize);
 
-    if (!ReadProcessMemory(m_processHandle, reinterpret_cast<LPCVOID>(m_moduleBase), m_moduleMemory.data(), m_moduleSize, &bytesRead)) {
+    if (!ReadProcessMemory(m_processHandle, reinterpret_cast<LPCVOID>(moduleBase), m_moduleMemory.data(), moduleSize, &bytesRead)) {
         throw std::runtime_error("Failed to read module memory");
     }
 
-    if (bytesRead != m_moduleSize) {
+    if (bytesRead != moduleSize) {
         throw std::runtime_error("Incomplete memory read");
     }
 }
