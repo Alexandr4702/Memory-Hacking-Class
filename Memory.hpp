@@ -14,17 +14,17 @@ public:
     ~Memory();
 
     static void EnableDebugPrivileges();
-    void ReadModuleToVector(const std::string& moduleName);
-    void ReadModuleToVector(uintptr_t moduleBase, size_t moduleSize);
-
-    const std::vector<uint8_t>& GetModuleMemory() const;
-
+    std::vector<uint8_t> ReadModuleToVector(const std::string& moduleName);
+    std::vector<uint8_t> ReadModuleToVector(uintptr_t moduleBase, size_t moduleSize);
+    std::vector<uint8_t> readProcesToVector();
 private:
     HANDLE m_processHandle = nullptr;
-    std::vector<uint8_t> m_moduleMemory;
     static bool m_isDebugPrivilegesEnabled;
 
     static void SetPrivilege(HANDLE hToken, const wchar_t* privilegeName, bool enablePrivilege);
 };
+
+void PrintMemoryLayout(HANDLE hProcess);
+void AnalyzeModuleSections(HANDLE processHandle, uintptr_t moduleBase);
 
 #endif // MEMORY_HPP_
